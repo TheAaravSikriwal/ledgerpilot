@@ -97,7 +97,7 @@ export default function Accounts() {
           accounts.data ? `${list.length} accounts · ${moneyWhole(total)} net` : "Loading accounts…"
         }
       />
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {GROUPS.map((g, i) => {
           const rows = list.filter(g.match);
           if (accounts.data && rows.length === 0) return null;

@@ -152,7 +152,7 @@ export default function Business() {
         </div>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Card className="rise rise-2 lg:col-span-12">
           <CardHeader
             eyebrow="Review queue"

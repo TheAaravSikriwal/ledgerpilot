@@ -58,7 +58,7 @@ export default function Dashboard() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         {/* Hero: the one number to act on today */}
         <Card className="rise rise-1 overflow-hidden lg:col-span-5">
           <div

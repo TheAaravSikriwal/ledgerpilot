@@ -60,7 +60,7 @@ export default function Settings() {
       />
       {save.error && <ErrorNote error={save.error} />}
 
-      <div className="grid gap-5">
+      <div className="grid grid-cols-1 gap-5">
         <Card className="rise rise-1">
           <CardHeader title="Household" />
           <div className="divide-y divide-line px-5 sm:px-6">

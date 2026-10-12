@@ -87,7 +87,7 @@ export default function Budget() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-12">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         <Card className="rise rise-1 lg:col-span-12">
           <div className="grid grid-cols-2 gap-6 px-6 py-5 md:grid-cols-5">
             <Stat label="Monthly budget" value={b ? moneyWhole(b.target_cents) : "—"} />
