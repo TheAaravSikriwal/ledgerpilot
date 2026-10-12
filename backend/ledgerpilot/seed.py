@@ -76,7 +76,15 @@ CATEGORIES: list[tuple[str, str, str, str | None, str | None, int, str | None]] 
     ("contract_labor", "Contract labor", "business", "20", "Contract labor", 100, "shopping"),
     ("business_insurance", "Business insurance", "business", "20", "Insurance", 100, "insurance"),
     ("bank_fees", "Bank & payment fees", "business", "20", "Bank & payment fees", 100, "shopping"),
-    ("education", "Education & training", "business", "20", "Education & training", 100, "shopping"),
+    (
+        "education",
+        "Education & training",
+        "business",
+        "20",
+        "Education & training",
+        100,
+        "shopping",
+    ),
     ("business_other", "Other business expense", "business", "20", "Other", 100, "shopping"),
     ("uncategorized", "Uncategorized", "other", None, None, 100, None),
 ]

@@ -86,7 +86,7 @@ class Transaction(Base):
     ai_rationale: Mapped[str | None] = mapped_column(Text)
     business_status: Mapped[str] = mapped_column(String(16), default="personal")
     business_pct: Mapped[int] = mapped_column(default=0)
-    # None | "owed" | "reimbursed" for expenses; "applied" on a reimbursement transfer once allocated.
+    # Expenses: None / "owed" / "reimbursed". Reimbursement transfers: "applied" once allocated.
     reimbursement_status: Mapped[str | None] = mapped_column(String(16))
     reimbursed_by_id: Mapped[int | None] = mapped_column(
         ForeignKey("transactions.id", ondelete="SET NULL")

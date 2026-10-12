@@ -45,7 +45,9 @@ def test_business_items_on_personal_card_have_hints():
     prior = [t for t in rows if t.date < TODAY.replace(day=1) and t.hint_business_status]
     assert any("GITHUB" in t.description for t in prior)
     assert all(t.category_id for t in prior)
-    current_github = [t for t in rows if t.date >= TODAY.replace(day=1) and "GITHUB" in t.description]
+    current_github = [
+        t for t in rows if t.date >= TODAY.replace(day=1) and "GITHUB" in t.description
+    ]
     assert current_github  # posts on the 5th
 
 

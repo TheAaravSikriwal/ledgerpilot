@@ -14,6 +14,8 @@ from ..money import pct_of
 from .base import AccountData, TransactionData
 
 MIXED_USE_PCT = 40  # matches the default phone_internet_business_pct setting
+CURRENT_MONTH_CONFIRMED_SHARE = 0.35  # rest of this month's business items await review
+MARKET_WINDOW_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -24,7 +26,7 @@ class _Spec:
     type: str
     owner: str
     target_cents: int | None = None  # depository balance "today"
-    start_value_cents: int | None = None  # investment value at history start
+    value_cents: int | None = None  # investment value around today (moves with market)
     beta: float = 1.0
 
 
@@ -32,20 +34,62 @@ ACCOUNTS: list[_Spec] = [
     _Spec("joint-checking", "Everyday Checking", "Harbor Federal", "checking", "joint", 24_380_00),
     _Spec("joint-savings", "High-Yield Savings", "Harbor Federal", "savings", "joint", 58_240_00),
     _Spec("visa", "Summit Rewards Visa", "Summit Card Services", "credit_card", "self"),
-    _Spec("biz-checking", "Business Checking", "Keystone Business Bank", "checking", "business",
-          46_150_00),
-    _Spec("biz-card", "Business Platinum Card", "Keystone Business Bank", "credit_card",
-          "business"),
-    _Spec("brokerage", "Individual Brokerage", "Meridian Investments", "brokerage", "self",
-          start_value_cents=171_400_00, beta=1.0),
-    _Spec("401k-northwind", "Northwind Systems 401(k)", "Fairway Retirement", "401k", "self",
-          start_value_cents=126_800_00, beta=0.9),
-    _Spec("roth-ira", "Roth IRA", "Meridian Investments", "ira_roth", "self",
-          start_value_cents=55_900_00, beta=1.1),
-    _Spec("trad-ira", "Traditional IRA", "Meridian Investments", "ira_traditional", "spouse",
-          start_value_cents=17_600_00, beta=0.8),
-    _Spec("401k-old", "Old Employer 401(k)", "Granite Benefits", "401k", "self",
-          start_value_cents=50_200_00, beta=0.85),
+    _Spec(
+        "biz-checking",
+        "Business Checking",
+        "Keystone Business Bank",
+        "checking",
+        "business",
+        46_150_00,
+    ),
+    _Spec(
+        "biz-card", "Business Platinum Card", "Keystone Business Bank", "credit_card", "business"
+    ),
+    _Spec(
+        "brokerage",
+        "Individual Brokerage",
+        "Meridian Investments",
+        "brokerage",
+        "self",
+        value_cents=186_420_00,
+        beta=1.0,
+    ),
+    _Spec(
+        "401k-northwind",
+        "Northwind Systems 401(k)",
+        "Fairway Retirement",
+        "401k",
+        "self",
+        value_cents=142_870_00,
+        beta=0.9,
+    ),
+    _Spec(
+        "roth-ira",
+        "Roth IRA",
+        "Meridian Investments",
+        "ira_roth",
+        "self",
+        value_cents=61_240_00,
+        beta=1.1,
+    ),
+    _Spec(
+        "trad-ira",
+        "Traditional IRA",
+        "Meridian Investments",
+        "ira_traditional",
+        "spouse",
+        value_cents=18_930_00,
+        beta=0.8,
+    ),
+    _Spec(
+        "401k-old",
+        "Old Employer 401(k)",
+        "Granite Benefits",
+        "401k",
+        "self",
+        value_cents=54_310_00,
+        beta=0.85,
+    ),
 ]
 CARD_AUTOPAY = {"visa": ("joint-checking", 25), "biz-card": ("biz-checking", 26)}
 PERSONAL_ACCOUNTS = {"joint-checking", "joint-savings", "visa"}
@@ -124,8 +168,8 @@ class MockSource:
         accounts = []
         for spec in ACCOUNTS:
             opening = current = None
-            if spec.start_value_cents is not None:
-                current = round(spec.start_value_cents * (1 + spec.beta * (market - 1)))
+            if spec.value_cents is not None:
+                current = round(spec.value_cents * (1 + spec.beta * (market - 1)))
             else:
                 target = spec.target_cents
                 if target is None:  # credit card: balance is whatever is not yet paid off
@@ -156,10 +200,10 @@ class MockSource:
         ext = f"d{d:%Y%m%d}-{i:02d}"
         category, hint, hint_pct = t.category_id, None, None
         if t.business_category:
-            # Earlier months: the user already confirmed these. This month: about half are
+            # Earlier months: the user already confirmed these. This month: some are
             # confirmed, the rest wait in the review queue.
             confirmed = d < self.today.replace(day=1) or (
-                random.Random(f"{self.seed}:hint:{ext}").random() < 0.5
+                random.Random(f"{self.seed}:hint:{ext}").random() < CURRENT_MONTH_CONFIRMED_SHARE
             )
             if confirmed:
                 category, hint, hint_pct = t.business_category, "business", 100
@@ -197,7 +241,8 @@ class MockSource:
         return outstanding
 
     def _market_factor(self) -> float:
-        factor, d = 1.0, self.start_date
+        """Market move over the trailing 30 days (plus an intraday wiggle per sync)."""
+        factor, d = 1.0, self.today - timedelta(days=MARKET_WINDOW_DAYS)
         while d <= self.today:
             if d.weekday() < 5:
                 factor *= 1 + random.Random(f"{self.seed}:mkt:{d}").gauss(0.00035, 0.0075)
@@ -246,16 +291,21 @@ class MockSource:
         if _is_pay_day(d, 22):
             add("biz-checking", "BLUEFIN ANALYTICS ACH PAYMENT", "Bluefin Analytics", 4_200_00)
         if _is_pay_day(d, 17) and month_rng.random() < 0.55:
-            add("biz-checking", "HARBORVIEW HEALTH ACH PAYMENT", "Harborview Health",
-                month_rng.randint(3_000, 6_500) * 100)
+            add(
+                "biz-checking",
+                "HARBORVIEW HEALTH ACH PAYMENT",
+                "Harborview Health",
+                month_rng.randint(3_000, 6_500) * 100,
+            )
 
         # --- S-Corp expenses (business card / business checking) -----------------------------
         if dom == 1:
             add("biz-card", "GOOGLE *WORKSPACE RIVERACONS", "Google Workspace", -28_80)
             add("biz-card", "WEWORK MEMBERSHIP", "WeWork", -450_00)
         if dom == 3:
-            add("biz-card", "AMAZON WEB SERVICES AWS.AMAZON.CO", "Amazon Web Services",
-                amt(38, 140))
+            add(
+                "biz-card", "AMAZON WEB SERVICES AWS.AMAZON.CO", "Amazon Web Services", amt(38, 140)
+            )
         if dom == 6:
             add("biz-card", "ANTHROPIC API USAGE", "Anthropic", amt(20, 85))
         if dom == 8:
@@ -271,16 +321,25 @@ class MockSource:
         if dom == 20 and m in (1, 4, 7, 10):
             add("biz-checking", "LEDGERWISE CPA LLC", "Ledgerwise CPA", -350_00)
         if m == 2 and dom == 15:
-            add("biz-checking", "SECRETARY OF THE COMMONWEALTH ANNUAL RPT", "MA Secretary",
-                -500_00)
+            add("biz-checking", "SECRETARY OF THE COMMONWEALTH ANNUAL RPT", "MA Secretary", -500_00)
 
         # --- Owner flows & quarterly items ----------------------------------------------------
         quarter_end = m in (3, 6, 9, 12) and _is_pay_day(d, last_day)
         if quarter_end:
-            add("biz-checking", "OWNER DISTRIBUTION - A RIVERA", "Rivera Consulting",
-                -12_000_00, "owner_distribution")
-            add("joint-checking", "RIVERA CONSULTING LLC DIST", "Rivera Consulting", 12_000_00,
-                "owner_distribution")
+            add(
+                "biz-checking",
+                "OWNER DISTRIBUTION - A RIVERA",
+                "Rivera Consulting",
+                -12_000_00,
+                "owner_distribution",
+            )
+            add(
+                "joint-checking",
+                "RIVERA CONSULTING LLC DIST",
+                "Rivera Consulting",
+                12_000_00,
+                "owner_distribution",
+            )
             add("biz-checking", "SOLO 401K EMPLOYER CONTRIB", "Fairway Retirement", -1_500_00)
         if m in (1, 4, 6, 9) and _is_pay_day(d, 15):
             add("joint-checking", "IRS USATAXPYMT", "IRS", -4_200_00)
@@ -288,33 +347,68 @@ class MockSource:
         if dom == 3 and d > self.start_date:
             owed = self._month_reimbursable(*_prev_month(d))
             if owed:
-                add("biz-checking", "ACCOUNTABLE PLAN REIMB - A RIVERA", "Rivera Consulting",
-                    -owed, "accountable_plan_reimbursement")
-                add("joint-checking", "RIVERA CONSULTING LLC REIMB", "Rivera Consulting", owed,
-                    "accountable_plan_reimbursement")
+                add(
+                    "biz-checking",
+                    "ACCOUNTABLE PLAN REIMB - A RIVERA",
+                    "Rivera Consulting",
+                    -owed,
+                    "accountable_plan_reimbursement",
+                )
+                add(
+                    "joint-checking",
+                    "RIVERA CONSULTING LLC REIMB",
+                    "Rivera Consulting",
+                    owed,
+                    "accountable_plan_reimbursement",
+                )
 
         # --- Card autopay (pays last month's statement) ---------------------------------------
         for card, (payer, autopay_day) in CARD_AUTOPAY.items():
             if _is_pay_day(d, autopay_day):
                 charges = self._charges(card, *_prev_month(d))
                 if charges < 0:
-                    add(payer, f"{card.upper().replace('-', ' ')} AUTOPAY", "Card payment",
-                        charges, "card_payment")
-                    add(card, "AUTOPAY PAYMENT - THANK YOU", "Card payment", -charges,
-                        "card_payment")
+                    add(
+                        payer,
+                        f"{card.upper().replace('-', ' ')} AUTOPAY",
+                        "Card payment",
+                        charges,
+                        "card_payment",
+                    )
+                    add(
+                        card,
+                        "AUTOPAY PAYMENT - THANK YOU",
+                        "Card payment",
+                        -charges,
+                        "card_payment",
+                    )
 
         # --- Household recurring --------------------------------------------------------------
         if dom == 1:
             add("joint-checking", "AVALONBAY COMMUNITIES RENT", "AvalonBay", -3_150_00)
-            add("joint-checking", "ONLINE TRANSFER TO SAVINGS", "Transfer", -1_500_00,
-                "savings_transfer")
-            add("joint-savings", "ONLINE TRANSFER FROM CHECKING", "Transfer", 1_500_00,
-                "savings_transfer")
+            add(
+                "joint-checking",
+                "ONLINE TRANSFER TO SAVINGS",
+                "Transfer",
+                -1_500_00,
+                "savings_transfer",
+            )
+            add(
+                "joint-savings",
+                "ONLINE TRANSFER FROM CHECKING",
+                "Transfer",
+                1_500_00,
+                "savings_transfer",
+            )
         if dom == 2:
             add("visa", "LEMONADE INSURANCE", "Lemonade", -18_00)
         if dom == 5:
-            add("joint-checking", "TRANSFER TO MERIDIAN INVESTMENTS", "Meridian Investments",
-                -2_000_00, "savings_transfer")
+            add(
+                "joint-checking",
+                "TRANSFER TO MERIDIAN INVESTMENTS",
+                "Meridian Investments",
+                -2_000_00,
+                "savings_transfer",
+            )
             add("visa", "GITHUB, INC.", "GitHub", -21_00, business="software_saas")
         if dom == 7:
             add("visa", "VERIZON WIRELESS PAYMENT", "Verizon", -142_18)
@@ -330,8 +424,12 @@ class MockSource:
             add("visa", "ZOOM.US 888-799-9666", "Zoom", -15_99, business="software_saas")
         if dom == 18:
             electric = 95 + (70 if m in (6, 7, 8) else 0) + (30 if m in (12, 1, 2) else 0)
-            add("joint-checking", "EVERSOURCE ENERGY", "Eversource", amt(electric - 15,
-                                                                          electric + 25))
+            add(
+                "joint-checking",
+                "EVERSOURCE ENERGY",
+                "Eversource",
+                amt(electric - 15, electric + 25),
+            )
         if dom == 20:
             add("visa", "GEICO AUTO", "Geico", -148_00)
         if dom == 21:
@@ -350,11 +448,21 @@ class MockSource:
                 add("visa", "DELTA AIR LINES", "Delta", amt(380, 640), business="business_travel")
                 add("visa", "UBER *TRIP", "Uber", amt(24, 48), business="business_travel")
             if dom == 9:
-                add("visa", "GIBSONS BAR & STEAKHOUSE", "Gibsons", amt(140, 260),
-                    business="business_meals")
+                add(
+                    "visa",
+                    "GIBSONS BAR & STEAKHOUSE",
+                    "Gibsons",
+                    amt(140, 260),
+                    business="business_meals",
+                )
             if dom == 10:
-                add("visa", "MARRIOTT CHICAGO", "Marriott", amt(450, 920),
-                    business="business_travel")
+                add(
+                    "visa",
+                    "MARRIOTT CHICAGO",
+                    "Marriott",
+                    amt(450, 920),
+                    business="business_travel",
+                )
                 add("visa", "UBER *TRIP", "Uber", amt(24, 48), business="business_travel")
 
         # --- Personal vacations -----------------------------------------------------------------
@@ -387,8 +495,13 @@ class MockSource:
         if weekday in (4, 5) and maybe(0.3):
             add("visa", "OLEANA RESTAURANT", "Oleana", amt(95, 175))
         if weekday < 5 and maybe(0.06):
-            add("visa", "THE CAPITAL GRILLE BOSTON", "The Capital Grille", amt(95, 260),
-                business="business_meals")
+            add(
+                "visa",
+                "THE CAPITAL GRILLE BOSTON",
+                "The Capital Grille",
+                amt(95, 260),
+                business="business_meals",
+            )
         if weekday == 0 and maybe(0.8):
             add("visa", "SHELL OIL 57442", "Shell", amt(38, 64))
         if maybe(0.1):

@@ -98,14 +98,27 @@ def _month_index(d: date) -> int:
     return d.year * 12 + d.month - 1
 
 
+def _posted_merchants(month_txns: Sequence[BudgetTxn], categories) -> set[str]:
+    return {t.merchant for t in month_txns if (c := counted(t, categories)) and c[1] > 0}
+
+
 def find_upcoming_bills(
     today: date,
     month_txns: Sequence[BudgetTxn],
     history_txns: Sequence[BudgetTxn],
     categories: Mapping[str, Category],
 ) -> list[UpcomingBill]:
-    """Recurring merchants (≥3 of the previous 4 months, stable amounts) not yet posted."""
-    current = _month_index(today)
+    """Recurring bills expected later this month that have not posted yet."""
+    posted = _posted_merchants(month_txns, categories)
+    recurring = find_recurring(_month_index(today), history_txns, categories)
+    return [b for b in recurring if b.merchant not in posted and b.expected_day > today.day]
+
+
+def find_recurring(
+    month_index: int, history_txns: Sequence[BudgetTxn], categories: Mapping[str, Category]
+) -> list[UpcomingBill]:
+    """Merchants seen in ≥3 of the previous 4 months with stable amounts."""
+    current = month_index
     monthly: dict[str, dict[int, int]] = defaultdict(lambda: defaultdict(int))
     first_day: dict[str, dict[int, int]] = defaultdict(dict)
     merchant_cat: dict[str, str] = {}
@@ -120,17 +133,15 @@ def find_upcoming_bills(
         first_day[t.merchant][m] = min(first_day[t.merchant].get(m, 31), t.date.day)
         merchant_cat[t.merchant] = c[0]
 
-    posted = {t.merchant for t in month_txns if (c := counted(t, categories)) and c[1] > 0}
     bills: list[UpcomingBill] = []
     for merchant, sums in monthly.items():
-        if len(sums) < RECURRING_MIN_MONTHS or merchant in posted:
+        if len(sums) < RECURRING_MIN_MONTHS:
             continue
         typical = median(sums.values())
         if any(abs(v - typical) > typical * RECURRING_AMOUNT_TOLERANCE for v in sums.values()):
             continue
         day = int(median(first_day[merchant].values()))
-        if day > today.day:
-            bills.append(UpcomingBill(merchant, merchant_cat[merchant], day, round(typical)))
+        bills.append(UpcomingBill(merchant, merchant_cat[merchant], day, round(typical)))
     return sorted(bills, key=lambda b: (b.expected_day, b.merchant))
 
 
@@ -158,11 +169,22 @@ def compute_budget(
         if c is not None:
             spent[c[0]] += c[1]
 
+    # Recurring bills are lump sums: pace them by due date, and the rest of the target linearly.
+    recurring_total: dict[str, int] = defaultdict(int)
+    recurring_due: dict[str, int] = defaultdict(int)
+    if target_index == today_index:
+        posted = _posted_merchants(month_txns, categories)
+        for bill in find_recurring(target_index, history_txns, categories):
+            recurring_total[bill.category_id] += bill.amount_cents
+            if bill.merchant in posted or bill.expected_day <= elapsed:
+                recurring_due[bill.category_id] += bill.amount_cents
+
     lines: list[CategoryLine] = []
     for cid in sorted(set(targets) | set(spent), key=lambda c: categories[c].sort_order or 0):
         cat = categories[cid]
         target = targets.get(cid, 0)
-        expected = round(target * elapsed / days_in_month)
+        flexible = max(0, target - recurring_total[cid])
+        expected = min(target, recurring_due[cid] + round(flexible * elapsed / days_in_month))
         lines.append(
             CategoryLine(
                 cid,

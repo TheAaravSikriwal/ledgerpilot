@@ -75,9 +75,7 @@ def history_rent_and_netflix():
 def test_recurring_bills_detected(categories):
     month = [txn(date(2026, 10, 1), "AVALONBAY", -3150_00, "housing")]
     bills = find_upcoming_bills(date(2026, 10, 15), month, history_rent_and_netflix(), categories)
-    assert [(b.merchant, b.expected_day, b.amount_cents) for b in bills] == [
-        ("NETFLIX", 20, 22_99)
-    ]
+    assert [(b.merchant, b.expected_day, b.amount_cents) for b in bills] == [("NETFLIX", 20, 22_99)]
 
 
 def test_irregular_amounts_not_recurring(categories):
@@ -87,6 +85,23 @@ def test_irregular_amounts_not_recurring(categories):
         txn(date(2026, 8, 18), "EVERSOURCE", -95_00, "utilities"),
     ]
     assert find_upcoming_bills(date(2026, 10, 5), [], history, categories) == []
+
+
+def test_recurring_bill_already_paid_does_not_look_hot(categories):
+    # Rent lands on the 1st; linear pacing would flag it as running hot all month.
+    month = [txn(date(2026, 10, 1), "AVALONBAY", -3150_00, "housing")]
+    r = compute_budget(
+        2026,
+        10,
+        date(2026, 10, 5),
+        {"housing": 3200_00},
+        categories,
+        month,
+        history_rent_and_netflix(),
+    )
+    housing = line(r, "housing")
+    assert housing.expected_by_today_cents == 3150_00 + round(50_00 * 5 / 31)
+    assert housing.status == "on_track"
 
 
 def test_safe_to_spend_formula(categories):
