@@ -1,0 +1,257 @@
+@import "tailwindcss";
+@import "@fontsource/instrument-sans/400.css";
+@import "@fontsource/instrument-sans/500.css";
+@import "@fontsource/instrument-sans/600.css";
+@import "@fontsource/instrument-serif/400.css";
+@import "@fontsource/instrument-serif/400-italic.css";
+
+/* ---------------------------------------------------------------------------------------
+   Design tokens. Light is the default; dark applies via OS preference unless the viewer
+   picked light, or via the explicit data-theme="dark" toggle.
+   Chart series hues were validated for CVD separation against each mode's card surface.
+   --------------------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+  --bg: #f4f1e8;
+  --surface: #fdfcf8;
+  --surface-2: #f2efe6;
+  --surface-3: #e9e5d9;
+  --ink: #16150f;
+  --ink-2: #57544a;
+  --muted: #8b877b;
+  --line: #e5e1d5;
+  --line-strong: #d3cebf;
+  --accent: #1d4d3c;
+  --accent-hover: #163d30;
+  --accent-ink: #f6f3ea;
+  --accent-soft: #e2ebe5;
+  --brass: #a07a32;
+  --brass-soft: #f3ead6;
+  --series-1: #16875a;
+  --series-2: #4a72c4;
+  --series-3: #b07a1c;
+  --series-4: #8a4fa8;
+  --good: #0ca30c;
+  --good-ink: #006300;
+  --warning: #fab219;
+  --warning-ink: #8a5a00;
+  --critical: #d03b3b;
+  --critical-ink: #b22b2b;
+  --shadow: 0 1px 0 rgba(22, 21, 15, 0.04), 0 8px 24px -12px rgba(22, 21, 15, 0.12);
+  --grain-opacity: 0.35;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --bg: #0b0e0d;
+    --surface: #131816;
+    --surface-2: #19201d;
+    --surface-3: #212a26;
+    --ink: #f2efe6;
+    --ink-2: #c3c0b3;
+    --muted: #8b877b;
+    --line: #242c28;
+    --line-strong: #33403a;
+    --accent: #8fd0b0;
+    --accent-hover: #a9dec3;
+    --accent-ink: #0b0e0d;
+    --accent-soft: #1a2a23;
+    --brass: #d1aa5f;
+    --brass-soft: #2a2416;
+    --series-1: #2f9a6c;
+    --series-2: #5a85d6;
+    --series-3: #b8842a;
+    --series-4: #a477cf;
+    --good-ink: #3cc23c;
+    --warning-ink: #fab219;
+    --critical-ink: #ef7272;
+    --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+    --grain-opacity: 0.18;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0e0d;
+  --surface: #131816;
+  --surface-2: #19201d;
+  --surface-3: #212a26;
+  --ink: #f2efe6;
+  --ink-2: #c3c0b3;
+  --muted: #8b877b;
+  --line: #242c28;
+  --line-strong: #33403a;
+  --accent: #8fd0b0;
+  --accent-hover: #a9dec3;
+  --accent-ink: #0b0e0d;
+  --accent-soft: #1a2a23;
+  --brass: #d1aa5f;
+  --brass-soft: #2a2416;
+  --series-1: #2f9a6c;
+  --series-2: #5a85d6;
+  --series-3: #b8842a;
+  --series-4: #a477cf;
+  --good-ink: #3cc23c;
+  --warning-ink: #fab219;
+  --critical-ink: #ef7272;
+  --shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 12px 32px -16px rgba(0, 0, 0, 0.6);
+  --grain-opacity: 0.18;
+}
+
+@theme inline {
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Instrument Serif", ui-serif, Georgia, serif;
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-soft: var(--accent-soft);
+  --color-brass: var(--brass);
+  --color-brass-soft: var(--brass-soft);
+  --color-good: var(--good);
+  --color-good-ink: var(--good-ink);
+  --color-warning: var(--warning);
+  --color-warning-ink: var(--warning-ink);
+  --color-critical: var(--critical);
+  --color-critical-ink: var(--critical-ink);
+  --shadow-card: var(--shadow);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Paper grain + a soft wash of light at the top: atmosphere without noise in the data. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: var(--grain-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.45 0 0 0 0 0.35 0 0 0 0.09 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: 420px;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(
+    60% 100% at 30% 0%,
+    color-mix(in oklab, var(--brass) 9%, transparent),
+    transparent 70%
+  );
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.serif {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--brass) 30%, transparent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Staggered entrance for page sections. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.rise {
+  animation: rise 520ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.rise-1 { animation-delay: 40ms; }
+.rise-2 { animation-delay: 110ms; }
+.rise-3 { animation-delay: 180ms; }
+.rise-4 { animation-delay: 250ms; }
+.rise-5 { animation-delay: 320ms; }
+
+/* A transaction that just arrived from a sync glows brass, then settles. */
+@keyframes arrive {
+  0% {
+    background-color: color-mix(in oklab, var(--brass) 26%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.arrived {
+  animation: arrive 4.5s ease-out both;
+}
+
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--good) 55%, transparent);
+  }
+  80%,
+  100% {
+    box-shadow: 0 0 0 7px transparent;
+  }
+}
+.live-dot {
+  animation: pulse-ring 2.2s ease-out infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .arrived,
+  .live-dot,
+  .spin {
+    animation: none !important;
+  }
+}
+
+input[type="number"]::-webkit-inner-spin-button {
+  opacity: 0.4;
+}

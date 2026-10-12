@@ -40,3 +40,7 @@ desktop.ini
 
 # Logs
 *.log
+
+# Local tooling
+.claude/
+.playwright-mcp/
