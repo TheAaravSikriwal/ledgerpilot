@@ -81,4 +81,5 @@ def budget_out(r: BudgetResult) -> dict[str, Any]:
         "status": r.status,
         "categories": [asdict(c) for c in r.categories],
         "upcoming_bills": [asdict(b) for b in r.upcoming_bills],
+        "daily": [asdict(d) for d in r.daily],
     }

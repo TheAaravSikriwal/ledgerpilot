@@ -131,3 +131,24 @@ def test_past_month_is_closed(categories):
     assert r.days_remaining == 0
     assert r.safe_to_spend_today_cents == 0
     assert line(r, "shopping").expected_by_today_cents == 500_00
+
+
+def test_daily_series_tracks_cumulative_spend_and_pace(categories):
+    month = [
+        txn(date(2026, 10, 1), "AVALONBAY", -3150_00, "housing"),
+        txn(date(2026, 10, 3), "TATTE", -20_00, "dining"),
+    ]
+    r = compute_budget(
+        2026,
+        10,
+        date(2026, 10, 5),
+        {"housing": 3200_00, "dining": 310_00},
+        categories,
+        month,
+        history_rent_and_netflix(),
+    )
+    assert len(r.daily) == 31
+    assert [p.spent_cents for p in r.daily[:5]] == [3150_00, 3150_00, 3170_00, 3170_00, 3170_00]
+    assert r.daily[5].spent_cents is None  # the future
+    assert r.daily[0].pace_cents == 3150_00 + round(50_00 / 31) + 10_00
+    assert r.daily[-1].pace_cents == 3510_00

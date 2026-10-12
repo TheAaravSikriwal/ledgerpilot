@@ -50,6 +50,13 @@ class UpcomingBill:
     amount_cents: int
 
 
+@dataclass(frozen=True)
+class DailyPoint:
+    day: int
+    spent_cents: int | None  # cumulative; None for days that haven't happened yet
+    pace_cents: int  # cumulative spending that would keep the month on budget
+
+
 @dataclass
 class BudgetResult:
     year: int
@@ -65,6 +72,7 @@ class BudgetResult:
     status: str
     categories: list[CategoryLine] = field(default_factory=list)
     upcoming_bills: list[UpcomingBill] = field(default_factory=list)
+    daily: list[DailyPoint] = field(default_factory=list)
 
 
 def counted(t: BudgetTxn, categories: Mapping[str, Category]) -> tuple[str, int] | None:
@@ -164,17 +172,21 @@ def compute_budget(
         elapsed, days_remaining = today.day, days_in_month - today.day + 1
 
     spent: dict[str, int] = defaultdict(int)
+    spent_by_day: dict[int, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     for t in month_txns:
         c = counted(t, categories)
         if c is not None:
             spent[c[0]] += c[1]
+            spent_by_day[t.date.day][c[0]] += c[1]
 
     # Recurring bills are lump sums: pace them by due date, and the rest of the target linearly.
+    recurring: list[UpcomingBill] = []
     recurring_total: dict[str, int] = defaultdict(int)
     recurring_due: dict[str, int] = defaultdict(int)
-    if target_index == today_index:
+    if target_index <= today_index:
         posted = _posted_merchants(month_txns, categories)
-        for bill in find_recurring(target_index, history_txns, categories):
+        recurring = find_recurring(target_index, history_txns, categories)
+        for bill in recurring:
             recurring_total[bill.category_id] += bill.amount_cents
             if bill.merchant in posted or bill.expected_day <= elapsed:
                 recurring_due[bill.category_id] += bill.amount_cents
@@ -205,6 +217,7 @@ def compute_budget(
             if b.category_id in targets
         ]
 
+    daily = _daily_series(lines, recurring, recurring_total, spent_by_day, days_in_month, elapsed)
     total_target = sum(line.target_cents for line in lines)
     total_spent = sum(line.spent_cents for line in lines)
     total_expected = sum(line.expected_by_today_cents for line in lines)
@@ -226,4 +239,32 @@ def compute_budget(
         status=pace_status(total_spent, total_target, total_expected),
         categories=lines,
         upcoming_bills=bills,
+        daily=daily,
     )
+
+
+def _daily_series(
+    lines: Sequence[CategoryLine],
+    recurring: Sequence[UpcomingBill],
+    recurring_total: Mapping[str, int],
+    spent_by_day: Mapping[int, Mapping[str, int]],
+    days_in_month: int,
+    elapsed: int,
+) -> list[DailyPoint]:
+    """Cumulative actual spending vs. the on-budget pace, one point per day of the month."""
+    budgeted = {line.category_id for line in lines}
+    points: list[DailyPoint] = []
+    cumulative = 0
+    for day in range(1, days_in_month + 1):
+        cumulative += sum(v for cid, v in spent_by_day.get(day, {}).items() if cid in budgeted)
+        pace = 0
+        for line in lines:
+            due = sum(
+                b.amount_cents
+                for b in recurring
+                if b.category_id == line.category_id and b.expected_day <= day
+            )
+            flexible = max(0, line.target_cents - recurring_total.get(line.category_id, 0))
+            pace += min(line.target_cents, due + round(flexible * day / days_in_month))
+        points.append(DailyPoint(day, cumulative if day <= elapsed else None, pace))
+    return points
