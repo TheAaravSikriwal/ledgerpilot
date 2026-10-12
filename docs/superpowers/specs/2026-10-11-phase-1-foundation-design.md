@@ -76,7 +76,10 @@ positive = money in. Connectors normalize to this convention.
   For accounts with transactions, balance = opening balance + Σ amounts. Investment accounts
   carry a stored balance (no transactions in phase 1).
 - **Category**: id (slug), name, group (`income`, `essential`, `discretionary`, `transfer`,
-  `business`), irs_line (business categories only), deductible_pct (100, or 50 for meals).
+  `taxes`, `business`, `other`), irs_line + irs_detail (business categories, plus mixed-use
+  personal categories such as phone & internet), deductible_pct (100, or 50 for meals),
+  personal_fallback_id (business categories: the personal category used if the item turns out
+  to be personal, e.g. software → subscriptions, business meals → dining).
 - **Transaction**: id, account_id, source, external_id (unique per source), date, description
   (raw), merchant (normalized), amount_cents, category_id, categorized_by
   (`rule`/`ai`/`user`/`source`), rule_id, ai_rationale, business_status
@@ -86,7 +89,7 @@ positive = money in. Connectors normalize to this convention.
   business_status, business_pct, priority, created_by (`system`/`user`).
 - **BudgetTarget**: category_id, monthly_cents (same target every month in phase 1).
 - **Setting**: key → JSON value (ai_enabled, sync_interval_minutes, household names,
-  filing_status, phone_business_pct, internet_business_pct).
+  filing_status, phone_internet_business_pct).
 - **SyncRun**: id, source, started_at, finished_at, new_count, status, error.
 - **MockState**: counter used to generate the deterministic "live" transaction sequence.
 
@@ -134,10 +137,14 @@ way"**, which creates a user rule.
 ## 7. Budget
 
 For the selected month (default current), over personal owners only (`self`, `spouse`,
-`joint`), excluding `transfer` and `business` categories and any transaction with
-`business_status = business`:
+`joint`) and budgeted groups (`essential`, `discretionary`):
 
-- `spent[c]` = outflows − refunds in category `c` for the month.
+- A confirmed business item (`business_status = business`) counts only its personal share:
+  `|amount| × (100 − business_pct) / 100` (so a 100% business charge counts 0, a 40%-business
+  phone bill counts 60%).
+- A `review` item counts in full under its category's `personal_fallback_id` until resolved
+  (assume personal until confirmed).
+- `spent[c]` = counted outflows − refunds in category `c` for the month.
 - `expected_by_today[c]` = `target[c] × day_of_month / days_in_month`.
 - Pace status: `over` if spent > target; `running_hot` if spent > expected × 1.10;
   else `on_track`.
