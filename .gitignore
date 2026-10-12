@@ -1,0 +1,42 @@
+# --- Private data: NEVER commit ---
+# All real or generated financial data, uploaded documents, and the local database live here.
+data/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+uploads/
+statements/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
